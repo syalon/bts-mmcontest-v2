@@ -135,28 +135,34 @@ def verify_onchain(log, transfer_list, proposal)
 
   # => compare
   success = true
-  if user_rewards_hash_local.size != user_rewards_hash_chain.size
-    success = false
-    log.error "wrong number, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size} ..."
-  else
-    log.error "check all rewards item, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size} ..."
-    user_rewards_hash_chain.each{|acc, value| 
-      if user_rewards_hash_local[acc] != value
-        success = false
-        log.error format("%-30s %10s", "check #{acc} reward ...", "ERROR")
-      else
-        log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
-      end
-    }
-    user_rewards_hash_local.each{|acc, value| 
-      if user_rewards_hash_chain[acc] != value
-        success = false
-        log.error format("%-30s %10s", "check #{acc} reward ...", "ERROR")
-      else
-        log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
-      end
-    }
+
+  keys_local = user_rewards_hash_local.keys
+  keys_chain = user_rewards_hash_chain.keys
+  keys_all = (keys_local + keys_chain).uniq
+  keys_only_in_local = keys_local - keys_chain
+  keys_only_in_chain = keys_chain - keys_local
+
+  keys_all.each do |acc|
+    vlocal = user_rewards_hash_local[acc]
+    vchain = user_rewards_hash_chain[acc]
+    if vlocal != vchain
+      success = false
+      log.error format("%-30s %10s(local: %s != proposal: %s)", "check #{acc} reward ...", "ERROR", vlocal.to_s, vchain.to_s)
+    else
+      log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
+    end
   end
+
+  keys_only_in_local.each do |acc|
+    success = false
+    log.error format("%-30s %10s(only local: %s)", "check #{acc} reward ...", "ERROR", user_rewards_hash_local[acc]) 
+  end
+
+  keys_only_in_chain.each do |acc|
+    success = false
+    log.error format("%-30s %10s(only proposal: %s)", "check #{acc} reward ...", "ERROR", user_rewards_hash_chain[acc]) 
+  end
+  
   return success
 end
 

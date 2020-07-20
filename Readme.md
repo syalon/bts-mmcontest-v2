@@ -23,10 +23,12 @@ Bitshares MarketMaking Contest script for  https://bitsharestalk.org/index.php?t
 
 4. Run the Ruby script `cb_snapshot_process.rb` to calculate rewards.
 
+5. Run the Ruby script `cb_verify.rb date proposal_id` to verify rewards data.
 
 ## Author
 
 [ChenBin](!https://github.com/Chen188)
+[syalon](https://github.com/syalon)
 
 ## Related
 

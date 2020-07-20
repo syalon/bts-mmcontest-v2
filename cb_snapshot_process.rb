@@ -59,6 +59,8 @@ def process_snapshots( snapshot_path )
   Dir.foreach(snapshot_path) do |file|
   # $file_list.each do |file|
     next if file == '.' or file == '..'
+    next unless file =~ /\.snapshot$/i
+
     blocks += 1
 #    puts [Time.now, blocks].join('   ') if blocks % 100 == 0
 
@@ -365,13 +367,16 @@ def process_snapshots( snapshot_path )
   puts
   puts "begin_builder_transaction"
 
+  transfer_list = []
+
   # trader rewards
   daily_trader_rewards.each do |_, rewards|
     [:sells, :buys].each do |side|
       rewards[side].sort_by { |acc, reward| -reward }.each do |acc, reward|
         next if reward < 0.00001 # skip data < 0.00001 BTS
         reward_value = (reward * 10 ** 5).to_f.to_s.split('.')[0]
-        puts transfer % [acc, reward_value]
+        transfer_list << [acc, reward_value]
+        # puts transfer % [acc, reward_value]
       end
     end
   end
@@ -379,18 +384,26 @@ def process_snapshots( snapshot_path )
   # burn
   burn_amount = (total_reward * 10 ** 5 * $burn_rewards_config[:ratio]).to_i
   if burn_amount > 0
-    puts transfer % [$burn_rewards_config[:to], burn_amount]
+    transfer_list << [$burn_rewards_config[:to], burn_amount]
+    # puts transfer % [$burn_rewards_config[:to], burn_amount]
   end
 
   # worker salary
   salary_amount = (total_reward * 10 ** 5 * $worker_salary_config[:ratio]).to_i
   if salary_amount > 0
-    puts transfer % [$worker_salary_config[:to], salary_amount]
+    transfer_list << [$worker_salary_config[:to], salary_amount]
+    # puts transfer % [$worker_salary_config[:to], salary_amount]
   end
+  
+  # puts
+  transfer_list.each{|info| puts transfer % info}
 
   puts 'set_fees_on_builder_transaction 0 1.3.0'
   puts 'propose_builder_transaction2 0 %s "%sT23:55:00" 0 true' % [ $proposer, Date.today.next_day(10).to_s ]
   puts
+
+  # return
+  return transfer_list
 end
 
 # 1. 检查挂单是否是所允许交易对

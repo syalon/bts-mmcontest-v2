@@ -51,7 +51,8 @@ def get_transaction_stat__24h(filled_orders_dir)
 
   Dir.foreach(filled_orders_dir) do |file|
     next if file == '.' or file == '..'
-
+    next unless file =~ /\.filled$/i
+    
     IO.readlines( File.join(filled_orders_dir, file) ).each do |str|
       # {
       #  "id":"2.18.5178",

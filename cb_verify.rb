@@ -11,7 +11,7 @@ class MyLogger
 
   attr_reader   :loggers
 
-  def initialize(log_filename = nil, appname = 'mmverify')
+  def initialize(log_filename = nil, appname = 'mm-contest-v2')
     @loggers = []
     @loggers << Logger.new(log_filename) if log_filename
     @loggers << Logger.new(STDOUT)
@@ -137,9 +137,9 @@ def verify_onchain(log, transfer_list, proposal)
   success = true
   if user_rewards_hash_local.size != user_rewards_hash_chain.size
     success = false
-    log.error "wrong number, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size.size} ..."
+    log.error "wrong number, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size} ..."
   else
-    log.error "check all rewards item, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size.size} ..."
+    log.error "check all rewards item, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size} ..."
     user_rewards_hash_chain.each{|acc, value| 
       if user_rewards_hash_local[acc] != value
         success = false
@@ -156,12 +156,12 @@ def verify_onchain(log, transfer_list, proposal)
         log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
       end
     }
-    return success
   end
-
+  return success
 end
 
 if __FILE__ == $0
+
   date = ARGV[0]
   raise 'miss date arg.' if date.nil?
 

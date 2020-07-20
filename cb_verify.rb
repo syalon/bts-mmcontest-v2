@@ -3,8 +3,55 @@
 require 'json'
 require 'http'
 require 'pp'
+require 'logger'
 
 require_relative 'cb_snapshot_process'
+
+class MyLogger
+
+  attr_reader   :loggers
+
+  def initialize(log_filename = nil, appname = 'mmverify')
+    @loggers = []
+    @loggers << Logger.new(log_filename) if log_filename
+    @loggers << Logger.new(STDOUT)
+    @loggers.each do |log|
+      log.datetime_format = '%Y-%m-%d %H:%M:%S'
+      log.progname = appname if appname
+    end
+  end
+
+  def debug(msg)
+    log_to_file :debug, msg
+  end
+
+  def info(msg)
+    log_to_file :info, msg
+  end
+
+  def warn(msg)
+    log_to_file :warn, msg
+  end
+
+  def error(msg)
+    log_to_file :error, msg
+  end
+
+  def fatal(msg)
+    log_to_file :fatal, msg
+  end
+
+  def unknown(msg)
+    log_to_file :unknown, msg
+  end
+
+  private
+  
+  def log_to_file(type, msg)
+    @loggers.each{|log| log.send(type, msg) if log}
+  end
+
+end
 
 def query_proposal(proposal_id)
   resp = HTTP.post("https://api.weaccount.cn/rpc", :body=>'{"jsonrpc": "2.0", "method": "get_objects", "params": [["' + proposal_id + '"]], "id": 1}') rescue nil
@@ -18,7 +65,7 @@ def query_proposal(proposal_id)
   return proposal
 end
 
-def verify_onchain(transfer_list, proposal)
+def verify_onchain(log, transfer_list, proposal)
   # # TODO: config
   # resp = HTTP.post("https://api.weaccount.cn/rpc", :body=>'{"jsonrpc": "2.0", "method": "get_proposed_transactions", "params": ["1.2.100876"], "id": 1}') rescue nil
   # raise 'fetch data error' if resp.nil?
@@ -87,11 +134,31 @@ def verify_onchain(transfer_list, proposal)
   end
 
   # => compare
-  raise 'verify failed...' if user_rewards_hash_local.size != user_rewards_hash_chain.size
-  user_rewards_hash_chain.each{|acc, value| raise 'verify failed...' if user_rewards_hash_local[acc] != value}
-  user_rewards_hash_local.each{|acc, value| raise 'verify failed...' if user_rewards_hash_chain[acc] != value}
-  
-  return true
+  success = true
+  if user_rewards_hash_local.size != user_rewards_hash_chain.size
+    success = false
+    log.error "wrong number, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size.size} ..."
+  else
+    log.error "check all rewards item, local: #{user_rewards_hash_local.size}, onchain: #{user_rewards_hash_chain.size.size} ..."
+    user_rewards_hash_chain.each{|acc, value| 
+      if user_rewards_hash_local[acc] != value
+        success = false
+        log.error format("%-30s %10s", "check #{acc} reward ...", "ERROR")
+      else
+        log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
+      end
+    }
+    user_rewards_hash_local.each{|acc, value| 
+      if user_rewards_hash_chain[acc] != value
+        success = false
+        log.error format("%-30s %10s", "check #{acc} reward ...", "ERROR")
+      else
+        log.info format("%-30s %10s", "check #{acc} reward ...", "OK")
+      end
+    }
+    return success
+  end
+
 end
 
 if __FILE__ == $0
@@ -104,7 +171,10 @@ if __FILE__ == $0
   # => 1. Calc local data
   base_dir = '/home/ubuntu/bts_delay_node/witness_node_data_dir/ugly-snapshots/2020/' + date
 
-  rewards_data_path = base_dir + 'data.rewards'
+  output_dir = File.expand_path("..", __FILE__) + '/'
+
+  rewards_data_path = output_dir + date + '.cache.rewards'
+
   transfer_list = JSON.parse(open(rewards_data_path, 'rb'){|fr| fr.read}) rescue nil
   if transfer_list.nil?
     start_time = Time.now
@@ -118,9 +188,17 @@ if __FILE__ == $0
     puts "Use cached reward data ..."
   end
 
+  log = MyLogger.new(output_dir + date + ".verify.log")
+
   # => 2. Verify
-  puts "Verify dir #{base_dir} ..."
+  log.info "Verify dir #{base_dir} ..."
+  log.info '-'.chr * 30
   proposal = query_proposal(proposal_id)
-  verify_onchain(transfer_list, proposal)
-  puts "Proposal data verification passed, #{date} OK OK OK !!!"
+  if verify_onchain(log, transfer_list, proposal)
+    log.info '-'.chr * 30
+    log.info "Proposal data verification passed, #{date} OK OK OK !!!"
+  else
+    log.info '-'.chr * 30
+    log.error "Proposal data verification failed, #{date} ERROR !!!"
+  end
 end

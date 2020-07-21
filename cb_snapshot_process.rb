@@ -6,11 +6,9 @@
 
 require 'time'
 require 'json'
-# require 'bigdecimal'
 
 require_relative 'cb_config'
 require_relative 'cb_get_transaction_stat'
-# require_relative 'file_list'
 
 PRINT_BLOCK_RESULT = false
 
@@ -64,8 +62,6 @@ def process_snapshots( snapshot_path )
     blocks += 1
 #    puts [Time.now, blocks].join('   ') if blocks % 100 == 0
 
-    # files_list << file
-
     order_books = {}
     valid_trading_pairs.each do |t_p_id, t_p|
       order_books[t_p_id] = {
@@ -110,7 +106,6 @@ def process_snapshots( snapshot_path )
       asset_quota_amount= order["sell_price"]["quote"]["amount"]
       trader = order["seller"]
       price  = Rational( asset_base_amount, asset_quota_amount )
-      # amount_for_sale = BigDecimal order['for_sale']  # asset id is sell_price.base.asset_id
 
       ## 约定：以小oid来作为买卖的对象
       if asset_base_id < asset_quote_id
@@ -242,9 +237,6 @@ def process_snapshots( snapshot_path )
 
           group_stat = side_order_groups[order[:group]]
           order[:score] = order[:weight] * group_stat[:score] / group_stat[:weight_sum]
-          # if order[:score].infinite?
-          #   puts
-          # end
 
           unless side_daily_trader_scores.has_key? order[:trader]
             side_daily_trader_scores[order[:trader]] = {score: 0r, group: order[:group]}
@@ -315,7 +307,7 @@ def process_snapshots( snapshot_path )
   end
   puts "=" * 45
 
-  total_reward = 0r
+  total_reward = 0
   daily_trader_scores.each do |t_p_idx, trader_score|
     [:sells, :buys].each do |side|
       group_data = daily_trading_group_data[t_p_idx][:"#{[side, 'group'].join('_')}"]
@@ -325,8 +317,11 @@ def process_snapshots( snapshot_path )
         group_score_sum  = group_data[score__group[:group]][:score]
         # 买卖盘其中1方 收益比为0的话，会导致group_reward_sum = 0
         unless group_reward_sum == 0 or group_score_sum == 0
-          daily_trader_rewards[t_p_idx][side][trader] = ( score__group[:score] / group_score_sum * group_reward_sum)#.to_i
-          total_reward += daily_trader_rewards[t_p_idx][side][trader]
+          reward_amount = (10 ** 5 * score__group[:score] * group_reward_sum / group_score_sum).to_i
+          next unless reward_amount >= 1
+
+          daily_trader_rewards[t_p_idx][side][trader] = reward_amount
+          total_reward += reward_amount
         end
       end
     end
@@ -335,7 +330,7 @@ def process_snapshots( snapshot_path )
   puts
   puts "============================================="
   puts "Total Rewards"
-  puts "Total %0.5f BTS" % (total_reward.to_f)
+  puts "Total %0.5f BTS" % (total_reward.to_f / 10 ** 5)
   puts
 
   daily_trader_rewards.each do |_, rewards|
@@ -346,15 +341,14 @@ def process_snapshots( snapshot_path )
 
       printf "--%-5s-------------------------reward(BTS)-\n" % side
       trader_counts = 0
-      trading_rewards = 0.0
+      trading_rewards = 0
       rewards[side].sort_by { |_, reward| -reward }.each do |acc, reward|
-        next if reward < 0.00001 # skip data < 0.00001 BTS
         trader_counts += 1
-        trading_rewards += reward.to_f
-        printf "%-30s%15.5f\n" % [acc, reward.to_f]
+        trading_rewards += reward
+        printf "%-30s%15.5f\n" % [acc, reward.to_f / 10 ** 5]
       end
       puts '-' * 12 + ' ' * 25 + '-' * 8
-      printf "Traders: %-21d%15.5f\n" % [trader_counts, trading_rewards]
+      printf "Traders: %-21d%15.5f\n" % [trader_counts, trading_rewards.to_f / 10 ** 5]
 
     end
   end
@@ -373,23 +367,21 @@ def process_snapshots( snapshot_path )
   daily_trader_rewards.each do |_, rewards|
     [:sells, :buys].each do |side|
       rewards[side].sort_by { |acc, reward| -reward }.each do |acc, reward|
-        next if reward < 0.00001 # skip data < 0.00001 BTS
-        reward_value = (reward * 10 ** 5).to_f.to_s.split('.')[0]
-        transfer_list << [acc, reward_value]
-        # puts transfer % [acc, reward_value]
+        transfer_list << [acc, reward]
+        # puts transfer % [acc, reward]
       end
     end
   end
 
   # burn
-  burn_amount = (total_reward * 10 ** 5 * $burn_rewards_config[:ratio]).to_i
+  burn_amount = (total_reward * $burn_rewards_config[:ratio]).to_i
   if burn_amount > 0
     transfer_list << [$burn_rewards_config[:to], burn_amount]
     # puts transfer % [$burn_rewards_config[:to], burn_amount]
   end
 
   # worker salary
-  salary_amount = (total_reward * 10 ** 5 * $worker_salary_config[:ratio]).to_i
+  salary_amount = (total_reward * $worker_salary_config[:ratio]).to_i
   if salary_amount > 0
     transfer_list << [$worker_salary_config[:to], salary_amount]
     # puts transfer % [$worker_salary_config[:to], salary_amount]
@@ -463,7 +455,7 @@ def check_order(order)
 end
 
 if __FILE__ == $0
-  date = ARGV[0] or Time.now.utc.to_s.split(' ')[0]
+  date = ARGV[0] || Time.now.utc.to_s.split(' ')[0]
   base_dir = '/home/ubuntu/bts_delay_node/witness_node_data_dir/ugly-snapshots/2020/' + date
   start_time = Time.now
   puts "Calc dir #{base_dir} ..."

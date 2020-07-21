@@ -202,9 +202,11 @@ if __FILE__ == $0
   proposal = query_proposal(proposal_id)
   if verify_onchain(log, transfer_list, proposal)
     log.info '-'.chr * 30
-    log.info "Proposal data verification passed, #{date} OK OK OK !!!"
+    log.info "Proposal #{proposal_id} data verification passed, #{date} OK OK OK !!!"
+    log.info '-'.chr * 30
+    log.info "Verify scripts: https://github.com/syalon/bts-mmcontest-v2"
   else
     log.info '-'.chr * 30
-    log.error "Proposal data verification failed, #{date} ERROR !!!"
+    log.error "Proposal #{proposal_id} data verification failed, #{date} ERROR !!!"
   end
 end

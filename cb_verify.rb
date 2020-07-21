@@ -4,6 +4,7 @@ require 'json'
 require 'http'
 require 'pp'
 require 'logger'
+require 'fileutils'
 
 require_relative 'cb_snapshot_process'
 
@@ -13,7 +14,10 @@ class MyLogger
 
   def initialize(log_filename = nil, appname = 'mm-contest-v2')
     @loggers = []
-    @loggers << Logger.new(log_filename) if log_filename
+    if log_filename
+      FileUtils.rm_rf log_filename rescue nil
+      @loggers << Logger.new(log_filename)
+    end
     @loggers << Logger.new(STDOUT)
     @loggers.each do |log|
       log.datetime_format = '%Y-%m-%d %H:%M:%S'
@@ -205,6 +209,8 @@ if __FILE__ == $0
     log.info "Proposal #{proposal_id} data verification passed, #{date} OK OK OK !!!"
     log.info '-'.chr * 30
     log.info "Verify scripts: https://github.com/syalon/bts-mmcontest-v2"
+    # => TODO: 验证成功删除数据（前期先保留，后续稳定后删除。）
+    # FileUtils.rm_rf base_dir rescue nil
   else
     log.info '-'.chr * 30
     log.error "Proposal #{proposal_id} data verification failed, #{date} ERROR !!!"
